@@ -25,7 +25,6 @@ def largeMotorDC2RPM(iDCval):
     oRPM : float 
         Speed of motor in RPM
         
-    
     '''
     
     # koeficient between RPM and applied motor voltage, in RPM/V

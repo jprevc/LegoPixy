@@ -35,7 +35,7 @@ def drawRectangle(iFig, iOrigin, iWidth, iHeight, iRot = 0, iCol = "blue", iAlph
     
     ax = iFig.add_subplot(111)
     
-    rect = patches.Rectangle((iOrigin[0]-iWidth/2,iOrigin[1]-iHeight/2), iWidth, iHeight, color=iCol, alpha=iAlpha)
+    rect = patches.Rectangle((iOrigin[0] - iWidth/2.0, iOrigin[1] - iHeight/2.0), iWidth, iHeight, color=iCol, alpha=iAlpha)
     trans = mpl.transforms.Affine2D().translate(-iOrigin[0], -iOrigin[1]).rotate_deg(iRot).translate(iOrigin[0], iOrigin[1]) + ax.transData
     
     rect.set_transform(trans)
@@ -43,7 +43,7 @@ def drawRectangle(iFig, iOrigin, iWidth, iHeight, iRot = 0, iCol = "blue", iAlph
     ax.add_patch(rect)
     
     
-def drawRobot(iFig, iRobotPose, iRobotLength=170, iRobotWidth=110, iWheelLength=50, iWheelWidth=35, iDistBetweenWheels=135 ):
+def drawRobot(iFig, iRobotPose, iRobotLength=170, iRobotWidth=110, iWheelLength=50, iWheelWidth=35, iDistBetweenWheels=135, iCamLength=30, iCamWidth=20 ):
     '''
     Draws a diferential drive robot on figure.
     
@@ -68,12 +68,22 @@ def drawRobot(iFig, iRobotPose, iRobotLength=170, iRobotWidth=110, iWheelLength=
     robotPosition = iRobotPose[:2]
     robotOrientation = iRobotPose[2]
     
+    # compute right and left wheels positions
     rightWheelPosition = robotPosition + (iDistBetweenWheels/2.0) * np.array([np.sin(robotOrientation * np.pi / 180), -np.cos(robotOrientation * np.pi / 180)])
     leftWheelPosition = robotPosition - (iDistBetweenWheels/2.0) * np.array([np.sin(robotOrientation * np.pi / 180), -np.cos(robotOrientation * np.pi / 180)])
     
+    # compute camera position    
+    cameralPosition = robotPosition + (iRobotLength / 2) * np.array([np.cos(robotOrientation * np.pi / 180), np.sin(robotOrientation * np.pi / 180)])
+    
+    # draw robot rectangle
     drawRectangle(iFig, robotPosition, iRobotLength, iRobotWidth, robotOrientation)
+    
+    # draw wheel rectangles
     drawRectangle(iFig, rightWheelPosition, iWheelLength, iWheelWidth, robotOrientation, iCol = "black")
     drawRectangle(iFig, leftWheelPosition, iWheelLength, iWheelWidth, robotOrientation, iCol = "black")
+
+    # draw camera rectangle
+    drawRectangle(iFig, cameralPosition, iCamLength, iCamWidth, robotOrientation, iCol = "black")
 
     
     
