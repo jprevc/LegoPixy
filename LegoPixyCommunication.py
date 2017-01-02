@@ -13,10 +13,13 @@ def client(iMac, iData = "test", iPort=3):
     serverMACAddress = iMac
     port = iPort  # port is an arbitrary choice. However, it must match the port used by the server.
     s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    s.connect((serverMACAddress, port))
-    text = iData
-    s.send(bytes(text, 'UTF-8'))
-    s.close()
+    try:
+        s.connect((serverMACAddress, port))
+        text = iData
+        s.send(bytes(text, 'UTF-8'))
+        s.close()
+    except:
+        s.close()
     
     
     
