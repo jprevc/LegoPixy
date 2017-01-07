@@ -60,7 +60,7 @@ def getParticleSensorValue(iParticlesPoseMat, iObjectPosMat):
     ----------
     np.ndarray
         3D matrix 2 × No × Np, where No is number of objects, and Np is number of particles, 
-        vector [:,Oi,Pi] represents position of object Oi in particle Pi's local coordinate system.
+        vector [:,Oi,Pi] represents distance and angle to object Oi in particle Pi's local coordinate system.
     
     '''
     
@@ -79,7 +79,10 @@ def getParticleSensorValue(iParticlesPoseMat, iObjectPosMat):
         for objectInd in range(numOfObjects):
             
             # get current object's position as would be measured by current particle
-            oParticleObjectPosMat[:,objectInd,particleInd] = np.dot(rotZ(partAngle).transpose(), iObjectPosMat[:,objectInd] - iParticlesPoseMat[:2, particleInd] )
+            objPosLocal = np.dot(rotZ(partAngle).transpose(), iObjectPosMat[:,objectInd] - iParticlesPoseMat[:2, particleInd] )
+            dist = np.sqrt(objPosLocal[0]**2 + objPosLocal[1]**2)
+            angle = np.arctan2(objPosLocal[1],objPosLocal[0]) * 180 / np.pi
+            oParticleObjectPosMat[:,objectInd,particleInd] = np.array([dist, angle])
             
     return oParticleObjectPosMat
         
@@ -219,7 +222,7 @@ def getSimulatedRobotSensorValue(iRobotPose, iObjPos, iMaxCamAngle=38, iMaxDista
         2nd element : int
             Index of detected object
         3rd element : np.ndarray
-            Matrix 2×1 (xo, yo), where xo and yo is position of detected object in mm
+            Matrix 2×1 (dist_o, phi_o), where dist_o and phi_o is position and view angle of detected object in mm and deg
     '''
     # use getParticleSensorValue to compute all loactions of objects simulated robot's coordinate system
     objPosLocal = getParticleSensorValue(iRobotPose, iObjPos)[:,:,0]
@@ -233,9 +236,9 @@ def getSimulatedRobotSensorValue(iRobotPose, iObjPos, iMaxCamAngle=38, iMaxDista
         yo = objPosLocal[1,objInd]
         
         dist = np.sqrt(xo**2 + yo**2)
-        angle = np.arctan2(yo, xo)    
+        angle = np.arctan2(yo, xo) * 180 / np.pi
         
-        if dist <= iMaxDistance and np.abs(angle * 180 / np.pi) <= iMaxCamAngle:
+        if dist <= iMaxDistance and np.abs(angle) <= iMaxCamAngle:
             return (True, objInd, np.array([xo, yo], ndmin=2).transpose())
             
     return (False, 0, np.zeros((2,1)))
