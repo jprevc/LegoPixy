@@ -98,7 +98,7 @@ def robotExternalKinematics(iDCvals, iPhi, iWheelRadius = 0.034, iWheelDistance 
    
     A = np.array([[np.cos(iPhi * np.pi / 180), 0], [np.sin(iPhi * np.pi / 180), 0], [0, 1]])
    
-    robotAbsSpeed = np.array([v_abs, w_abs]).transpose()
+    robotAbsSpeed = np.array([v_abs, w_abs], ndmin=2).transpose()
    
     oExternalSpeed = np.dot(A, robotAbsSpeed)
    
@@ -109,7 +109,7 @@ def robotComputeNewPose(iCurPose, iRobotSpeed, iSampleTime):
     Computes new robot pose, using curent pose and current speed of the robot. This function uses Euler integration method.
     Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1
     
-    Paramters
+    Parameters
     ---------
     
     iCurPose    : np.array, 3×1 
@@ -123,7 +123,7 @@ def robotComputeNewPose(iCurPose, iRobotSpeed, iSampleTime):
     ---------
     
     oNewPose : np.array, 3×1
-        New robot pose (px_new,py_new,phi_new) in mm and deg   
+        New robot pose (px_new, py_new, phi_new) in mm and deg   
         
     '''
     
@@ -135,6 +135,53 @@ def robotComputeNewPose(iCurPose, iRobotSpeed, iSampleTime):
     py_new = iCurPose[1] + v_robotAbs * iSampleTime * np.sin(iCurPose[2] * np.pi / 180) * 1000
     phi_new = iCurPose[2] + (iRobotSpeed[2] * iSampleTime) * 180 / np.pi
     
+    # check angle cycle
+    phi_new = repairAngleCycle(phi_new)
+    
     oNewPose = np.array([px_new,py_new,phi_new])
     
     return oNewPose
+
+def repairAngleCycle(iAngle):
+    '''
+    Gets angle value to [-180, 180] interval.
+    
+    Parameters
+    ----------
+    iAngle : float
+        Input angle in degrees
+        
+    Returns
+    ---------
+    float
+        Output angle in degrees
+    '''
+    
+    #return iAngle % 360
+    return np.arctan2(np.sin(iAngle * np.pi / 180), np.cos(iAngle * np.pi / 180)) * 180 / np.pi
+    
+def rotZ(iAngle):
+    '''
+    Returns 2×2 rotational matrix around z axis
+    
+    Parameters
+    ---------
+    iAngle : float
+        Rotational angle in degrees.
+        
+    Returns
+    --------
+    np.ndarray
+        2×2 rotatinal matrix
+        
+    '''
+    
+    # convert angle to radians    
+    iAngle = iAngle * np.pi / 180
+    
+    oMat = np.array([[np.cos(iAngle) , -np.sin(iAngle)], 
+                     [np.sin(iAngle) , np.cos(iAngle)]])
+    
+    return oMat
+    
+    

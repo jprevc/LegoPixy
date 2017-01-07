@@ -12,6 +12,7 @@ import matplotlib as mpl
 
 from LegoSimFunctions import *
 from LegoKinematics import *
+from LegoPixyCommunication import *
 
 Ts = 0.1  # sample time in s
 Tfin = 10 # Time of simulation
@@ -28,21 +29,21 @@ robotPose = np.zeros((NumOfSamples,3)) # n×3 matrix of robot pose, first two co
 # robot initial position and orientation
 robotPose[0,:] = [600,400,0]
 
-for i in range(1,NumOfSamples):
-    
-    # draw current robot position
-    plt.cla() # clear figure
-    drawRobot(fig1, robotPose[i-1,:])
-    plt.pause(0.05)
-    
-    # TODO: get real motor DC values from robot
-    
-    # get current speed of robot according to DC values    
-    curSpeed = robotExternalKinematics((20,30), robotPose[i-1,2])
-    
-    # compute new robot pose
-    robotPose[i,:] = robotComputeNewPose(robotPose[i-1,:], curSpeed, Ts)
-    
+#for i in range(1,NumOfSamples):
+#    
+#    # draw current robot position
+#    plt.cla() # clear figure
+#    drawRobot(fig1, robotPose[i-1,:])
+#    plt.pause(0.05)
+#    
+#    # TODO: get real motor DC values from robot
+#    
+#    # get current speed of robot according to DC values    
+#    curSpeed = robotExternalKinematics((20,30), robotPose[i-1,2])
+#    
+#    # compute new robot pose
+#    robotPose[i,:] = robotComputeNewPose(robotPose[i-1,:], curSpeed, Ts)
+#    
 
     
 ###############################################################################
@@ -67,7 +68,6 @@ while(1):
     
     print(LegoPar[0,4])
     
-    
     # draw current robot position
     plt.cla() # clear figure
     if LegoPar[0,0] == 1:
@@ -82,9 +82,7 @@ while(1):
     
     drawRobot(fig1, robotPose[i-1,:])
     plt.pause(0.005)
-    
-    # TODO: get real motor DC values from robot
-    
+
     # get current speed of robot according to DC values    
     dc_l = LegoPar[0,1]
     dc_d = LegoPar[0,2]

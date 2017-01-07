@@ -86,4 +86,16 @@ def drawRobot(iFig, iRobotPose, iRobotLength=170, iRobotWidth=110, iWheelLength=
     drawRectangle(iFig, cameralPosition, iCamLength, iCamWidth, robotOrientation, iCol = "black")
 
     
+def drawParticles(iParticlesPoseMat, iParticleWeights):
+    '''
+    Draws particles as arrows to current axis.
     
+    Parameters
+    ---------
+    iParticlesPoseMat : np.ndarray
+        Matrix 3×Np, where Np is number of particles. Each column represents (xp,yp, phi_p) for each particle
+    iParticleWeights : np.ndarray
+        Vector of length Np, where Np is number of particles. Weights affect the color of the drawn particle arrows
+    '''
+    
+    plt.quiver(iParticlesPoseMat[0,:], iParticlesPoseMat[1,:], np.cos(iParticlesPoseMat[2,:] * np.pi / 180), np.sin(iParticlesPoseMat[2,:] * np. pi / 180), iParticleWeights)
