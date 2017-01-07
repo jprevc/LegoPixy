@@ -69,7 +69,7 @@ for i in range(1,NumOfSamples):
     
     # corection step    
     # get simulated robot sensor value
-    is_detected, detObjInd, objDistAngleRobotLocal = getSimulatedRobotSensorValue(qRobotRealPose, objPos)  
+    is_detected, detObjInd, objPosRobotLocal = getSimulatedRobotSensorValue(qRobotRealPose, objPos)  
     
     if is_detected:
         
@@ -77,7 +77,7 @@ for i in range(1,NumOfSamples):
         particlesSensorVal = getParticleSensorValue(qParticles, objPos)        
         
         # compute innovation        
-        innovMat = computeInnovation(detObjInd, objDistAngleRobotLocal, particlesSensorVal)
+        innovMat = computeInnovation(detObjInd, objPosRobotLocal, particlesSensorVal)
         
         # compute particle weights
         particlesWeights = computeParticleWeights(innovMat, computeCovarianceMat(sensorVariance))
