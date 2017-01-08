@@ -10,6 +10,30 @@ import matplotlib.pyplot as plt
 from LegoKinematics import *
 from LegoSimFunctions import *
 
+def initializeParticles(iNumParticles, iParticlePose, iParticlesDeviation):
+    '''
+    Initialize particles in a certain position and deviation around that position.
+    
+    Parameters
+    ------------
+    iNumParticles : int
+        Number of particles to initialize
+    iParticlesPose : np.ndarray
+        Array 3×1 of initial particles pose
+    iParticlesDeviation : np.ndarray
+        Sequence of 2 elements (posDev, angleDev), where posDev is position deviation
+        in mm and angleDev is angle deviation in deg around initial pose
+        
+    Returns
+    --------
+    np.ndarray
+        Array 3×Np of initialized particles, where Np is number of particles.
+    '''
+    
+    oParticlesPoseMat = iParticlePose + np.dot(np.diag(np.array([iParticlesDeviation[0], iParticlesDeviation[0], iParticlesDeviation[1]])), np.random.rand(3,iNumParticles)-0.5)
+    
+    return oParticlesPoseMat
+
 def computeNewParticlesPose(iParticlesPoseMat, iRobotSpeed, iSampleTime):
     '''
     Returns new predicted positions for all particles. This function represents prediction step of the particle filter.

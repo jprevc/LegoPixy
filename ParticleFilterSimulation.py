@@ -14,7 +14,7 @@ from ParticleFilter import *
 Ts = 0.1  # sample time in s
 Tfin = 30 # Time of simulation
 
-# sensor distance variance in mm
+# sensor distance variance
 sensorVariance = 0.5
 
 # actuator variance noise
@@ -28,8 +28,6 @@ objPos = np.array([[-200,-200], [200,600], [600,200]]).transpose()
 
 # draw environment
 fig1 = plt.figure(1)
-plt.xlim(-500, 1000)
-plt.ylim(-500, 1000)
 
 # draw objects
 drawRectangle(fig1, objPos[:,0], 40, 20, iCol="red")
@@ -37,7 +35,10 @@ drawRectangle(fig1, objPos[:,1], 40, 20, iCol="green")
 drawRectangle(fig1, objPos[:,2], 40, 20, iCol="blue")
 
 # simulated robot starting pose
-qRobotRealPose = np.array([400, -400, 20], ndmin=2).transpose()
+qRobotRealPose = np.array([200, -100, -10], ndmin=2).transpose()
+
+# commanded robot speed as DC values for left and right wheels
+robotWheelSpeed = (40,20)
 #drawRobot(fig1, qRobotRealPose)
 
 # estimated robot start pose
@@ -45,16 +46,20 @@ qRobotEstPose = np.array([0, 0, 0], ndmin=2).transpose()
 
 # initialize particles for particle filter
 nParticles = 600
-particlePosDeviation = 1000    # particle position deviation from robot's initial estimated position in mm
-particleOrientDeviation = 180 # particle orientation deviation from robot's initial estimated orientation in degrees
-qParticles = qRobotEstStartPose + np.dot(np.diag(np.array([particlePosDeviation, particlePosDeviation, particleOrientDeviation])), np.random.rand(3,nParticles)-0.5)
+particlePosDeviation = 400    # particle position deviation from robot's initial estimated position in mm
+particleOrientDeviation = 90 # particle orientation deviation from robot's initial estimated orientation in degrees
+partDev = np.array([particlePosDeviation, particleOrientDeviation])
 
-#qParticlesTest = qRobotEstStartPose; 
+# initialize particles
+qParticles = initializeParticles(nParticles, qRobotEstPose, partDev)
+
 # initialize weights for particles
 particlesWeights = np.ones(nParticles) / nParticles
 
-# draw initial particle position and orientation
+# convergence threshold, if standard deviation of particle position is below this value, particles are considered converged
+convergenceThreshold = 1e-5
 
+innovThreshold = 150
 
 # *function test
 #out = getParticleSensorValue(qParticlesTest, objPos)
@@ -62,10 +67,10 @@ particlesWeights = np.ones(nParticles) / nParticles
 for i in range(1,NumOfSamples):
     
     # get current speed of robot according to DC values    
-    curSpeedReal = robotExternalKinematics((20,30), qRobotRealPose[2,0])
+    curSpeedReal = robotExternalKinematics(robotWheelSpeed, qRobotRealPose[2,0])
     
     # get speed of estimated robot
-    curSpeedEst = robotExternalKinematics((20,30), qRobotEstPose[2,0])
+    curSpeedEst = robotExternalKinematics(robotWheelSpeed, qRobotEstPose[2,0])
     
     # compute new robot pose
     qRobotRealPose = robotComputeNewPose(qRobotRealPose, curSpeedReal, Ts)
@@ -88,6 +93,16 @@ for i in range(1,NumOfSamples):
         # compute particle weights
         particlesWeights = computeParticleWeights(innovMat, computeCovarianceMat(sensorVariance))
         
+        print(np.std(particlesWeights))
+        print(np.linalg.norm(np.mean(innovMat, 1)))
+        
+        # find out if particles are converged        
+        is_converged = np.std(particlesWeights) < convergenceThreshold
+        if is_converged:
+            # reinitialize particles if innovation has become too big
+            if np.linalg.norm(np.mean(innovMat, 1)) > innovThreshold:
+                qParticles = initializeParticles(nParticles, qRobotEstPose, partDev)
+            
         # select new generation of particles
         selParticleIndexes = selectNewGeneration(particlesWeights)
         qParticles = qParticles[:,selParticleIndexes]
@@ -110,6 +125,10 @@ for i in range(1,NumOfSamples):
     
     # draw current particle positions
     drawParticles(qParticles, particlesWeights)
+    
+    plt.xlim(-500, 1000)
+    plt.ylim(-500, 1000)
+
     plt.pause(0.05)
 
  
