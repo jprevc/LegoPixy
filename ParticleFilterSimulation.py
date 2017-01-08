@@ -38,7 +38,7 @@ drawRectangle(fig1, objPos[:,2], 40, 20, iCol="blue")
 qRobotRealPose = np.array([200, -100, -10], ndmin=2).transpose()
 
 # commanded robot speed as DC values for left and right wheels
-robotWheelSpeed = (40,20)
+robotWheelSpeed = (20,40)
 #drawRobot(fig1, qRobotRealPose)
 
 # estimated robot start pose
