@@ -136,7 +136,12 @@ def computeParticleWeights(iInnovationMat, iCovarianceMat):
     oParticleWeigths = np.zeros((numOfParticles, 1))
     
     for particleInd in range(numOfParticles):
-        oParticleWeigths[particleInd] = np.exp(-0.5 * np.dot(np.dot(iInnovationMat[:, particleInd].transpose(), np.linalg.inv(iCovarianceMat)), iInnovationMat[:, particleInd])) + 0.001
+        detCovMat = np.linalg.det(2*np.pi*iCovarianceMat)
+        innovMat = np.array(iInnovationMat[:, particleInd], ndmin=2)
+        InnovRRInnov = np.dot(np.dot(innovMat, np.linalg.inv(iCovarianceMat)), innovMat.transpose())
+        #oParticleWeigths[particleInd] = detCovMat**(-0.5) * np.exp(-0.5 * InnovRRInnov) + 0.001
+        #oParticleWeigths[particleInd] = np.exp(-0.5 * InnovRRInnov) + 0.0001
+        oParticleWeigths[particleInd] = 1/InnovRRInnov + 0.0001
         
     return oParticleWeigths
 
@@ -183,15 +188,19 @@ def selectNewGeneration(iParticleWeights):
     indSelectRand = np.random.rand(numOfParticles)
     
     # prepend 0 to array CDF
+    #CDFg = np.insert(CDF, 0, 0)
     CDFg = np.insert(CDF, 0, 0)
     
-    # prepend 1 to indg
-    indg = np.arange(numOfParticles)
+    indg = np.insert(np.arange(numOfParticles),0,0)
     
-    indNextGen_float = np.interp(indSelectRand, CDFg[:-1], indg)
+    indNextGen_float = np.interp(indSelectRand, CDFg, indg)
     
-    # round up
-    indNextGen = np.round(indNextGen_float + 0.5).astype('int') - 1
+    indNextGen = np.ceil(indNextGen_float).astype('int') 
+    
+#    plt.figure(2)
+#    plt.clf()
+#    plt.plot(CDFg[:-1], indg)
+#    plt.pause(0.05)
     
     return indNextGen
     
@@ -233,9 +242,9 @@ def getSimulatedRobotSensorValue(iRobotPose, iObjPos, iMaxCamAngle=38, iMaxDista
         yo = objPosLocal[1,objInd]
         
         dist = np.sqrt(xo**2 + yo**2)
-        angle = np.arctan2(yo, xo)    
+        angle = np.arctan2(yo, xo) * 180 / np.pi   
         
-        if dist <= iMaxDistance and np.abs(angle * 180 / np.pi) <= iMaxCamAngle:
+        if dist <= iMaxDistance and np.abs(angle) <= iMaxCamAngle:
             return (True, objInd, np.array([xo, yo], ndmin=2).transpose())
             
     return (False, 0, np.zeros((2,1)))
