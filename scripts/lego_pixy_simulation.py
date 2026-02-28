@@ -8,41 +8,46 @@ Created on Fri Dec 30 08:44:57 2016
 import matplotlib.pyplot as plt
 import numpy as np
 
-from legopixy.lego_kinematics import robotComputeNewPose, robotExternalKinematics
-from legopixy.lego_pixy_communication import recieveData
-from legopixy.lego_sim_functions import drawRectangle, drawRobot
+from legopixy.constants import (
+    PIXY_SIGNATURE_HEIGHT,
+    PIXY_SIGNATURE_ROTATION,
+    PIXY_SIGNATURE_WIDTH,
+)
+from legopixy.lego_kinematics import robot_compute_new_pose, robot_external_kinematics
+from legopixy.lego_pixy_communication import receive_data
+from legopixy.lego_sim_functions import draw_rectangle, draw_robot
 
-Ts = 0.1  # sample time in s
-Tfin = 10  # Time of simulation
+ts = 0.1  # sample time in s
+t_fin = 10  # Time of simulation
 
-t_vec = np.arange(0, Tfin, Ts)
-NumOfSamples = len(t_vec)
+t_vec = np.arange(0, t_fin, ts)
+num_of_samples = len(t_vec)
 
 fig1 = plt.figure(1)
 plt.xlim(-500, 1000)
 plt.ylim(-500, 1000)
 plt.grid("on")
-robotPose = np.zeros(
-    (NumOfSamples, 3)
+robot_pose = np.zeros(
+    (num_of_samples, 3)
 )  # n×3 matrix of robot pose, first two columns are x and y position in mm,
 # 3rd column is robot orientation in deg
 # robot initial position and orientation
-robotPose[0, :] = [600, 400, 0]
+robot_pose[0, :] = [600, 400, 0]
 
-# for i in range(1,NumOfSamples):
+# for i in range(1, num_of_samples):
 #
 #    # draw current robot position
 #    plt.cla() # clear figure
-#    drawRobot(fig1, robotPose[i-1,:])
+#    draw_robot(fig1, robot_pose[i-1,:])
 #    plt.pause(0.05)
 #
 #    # TODO: get real motor DC values from robot
 #
 #    # get current speed of robot according to DC values
-#    curSpeed = robotExternalKinematics((20,30), robotPose[i-1,2])
+#    cur_speed = robot_external_kinematics((20,30), robot_pose[i-1,2])
 #
 #    # compute new robot pose
-#    robotPose[i,:] = robotComputeNewPose(robotPose[i-1,:], curSpeed, Ts)
+#    robot_pose[i,:] = robot_compute_new_pose(robot_pose[i-1,:], cur_speed, ts)
 #
 
 
@@ -54,40 +59,68 @@ fig1 = plt.figure(1)
 plt.xlim(-1000, 1000)
 plt.ylim(-1000, 1000)
 plt.grid("on")
-robotPose = np.zeros(
-    (NumOfSamples, 3)
+robot_pose = np.zeros(
+    (num_of_samples, 3)
 )  # n×3 matrix of robot pose, first two columns are x and y position in mm,
 # 3rd column is robot orientation in deg
 
 i = 2
 # robot initial position and orientation
-robotPose[0, :] = [600, 400, 0]
+robot_pose[0, :] = [600, 400, 0]
 
 
 while 1:
 
-    LegoPar = recieveData("a4:db:30:56:59:71", 4)
+    lego_parameters = receive_data("a4:db:30:56:59:71", 4)
 
-    print(LegoPar[0, 4])
+    print(lego_parameters[0, 4])
 
     # draw current robot position
     plt.cla()  # clear figure
-    if LegoPar[0, 0] == 1:
-        drawRectangle(fig1, (LegoPar[0, 3], LegoPar[0, 4]), 64, 32, 90, "blue")
-    elif LegoPar[0, 0] == 2:
-        drawRectangle(fig1, (LegoPar[0, 3], LegoPar[0, 4]), 64, 32, 90, "red")
-    elif LegoPar[0, 0] == 3:
-        drawRectangle(fig1, (LegoPar[0, 3], LegoPar[0, 4]), 64, 32, 90, "green")
-    elif LegoPar[0, 0] == 4:
-        drawRectangle(fig1, (LegoPar[0, 3], LegoPar[0, 4]), 64, 32, 90, "yellow")
+    if lego_parameters[0, 0] == 1:
+        draw_rectangle(
+            fig1,
+            (lego_parameters[0, 3], lego_parameters[0, 4]),
+            PIXY_SIGNATURE_WIDTH,
+            PIXY_SIGNATURE_HEIGHT,
+            PIXY_SIGNATURE_ROTATION,
+            "blue",
+        )
+    elif lego_parameters[0, 0] == 2:
+        draw_rectangle(
+            fig1,
+            (lego_parameters[0, 3], lego_parameters[0, 4]),
+            PIXY_SIGNATURE_WIDTH,
+            PIXY_SIGNATURE_HEIGHT,
+            PIXY_SIGNATURE_ROTATION,
+            "red",
+        )
+    elif lego_parameters[0, 0] == 3:
+        draw_rectangle(
+            fig1,
+            (lego_parameters[0, 3], lego_parameters[0, 4]),
+            PIXY_SIGNATURE_WIDTH,
+            PIXY_SIGNATURE_HEIGHT,
+            PIXY_SIGNATURE_ROTATION,
+            "green",
+        )
+    elif lego_parameters[0, 0] == 4:
+        draw_rectangle(
+            fig1,
+            (lego_parameters[0, 3], lego_parameters[0, 4]),
+            PIXY_SIGNATURE_WIDTH,
+            PIXY_SIGNATURE_HEIGHT,
+            PIXY_SIGNATURE_ROTATION,
+            "yellow",
+        )
 
-    drawRobot(fig1, robotPose[i - 1, :])
+    draw_robot(fig1, robot_pose[i - 1, :])
     plt.pause(0.005)
 
     # get current speed of robot according to DC values
-    dc_l = LegoPar[0, 1]
-    dc_d = LegoPar[0, 2]
-    curSpeed = robotExternalKinematics((dc_l, dc_d), robotPose[i - 1, 2])
+    dc_l = lego_parameters[0, 1]
+    dc_d = lego_parameters[0, 2]
+    cur_speed = robot_external_kinematics((dc_l, dc_d), robot_pose[i - 1, 2])
 
     # compute new robot pose
-    robotPose[i, :] = robotComputeNewPose(robotPose[i - 1, :], curSpeed, Ts)
+    robot_pose[i, :] = robot_compute_new_pose(robot_pose[i - 1, :], cur_speed, ts)

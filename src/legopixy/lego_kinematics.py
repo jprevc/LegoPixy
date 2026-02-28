@@ -9,216 +9,172 @@ from __future__ import annotations
 
 import numpy as np
 
+from legopixy.constants import (
+    DEG_TO_RAD,
+    LARGE_MOTOR_MAX_VOLT,
+    LARGE_MOTOR_RPM_PER_VOLT,
+    MM_PER_M,
+    RAD_TO_DEG,
+    SECONDS_PER_MINUTE,
+)
+from legopixy.types import PoseArray, RobotSpeedArray
 
-def largeMotorDC2RPM(iDCval: float) -> float:
+
+def large_motor_dc_to_rpm(dc_value: float) -> float:
     """
-    Compute RPM value of large motor from DC value.
-    This function uses a model, acquired from website http://www.philohome.com/motors/motorcomp.htm
+    Compute large motor speed from duty cycle.
 
-    Parameters
-    ----------
-    iDCval : float
-        DC value, applied to motor, in %
+    This model is based on data from http://www.philohome.com/motors/motorcomp.htm.
 
-    Returns
-    ---------
-    oRPM : float
-        Speed of motor in RPM
-
+    :param dc_value: Duty-cycle command applied to the motor, in percent.
+    :returns: Motor speed in revolutions per minute.
     """
 
-    # koeficient between RPM and applied motor voltage, in RPM/V
-    koef = 230.0 / 12
+    rpm = dc_value / 100.0 * LARGE_MOTOR_MAX_VOLT * LARGE_MOTOR_RPM_PER_VOLT
 
-    # maximum voltage, which can be applied, this should be at DC = 100%
-    maxVolt = 12
-
-    oRPM = iDCval / 100.0 * maxVolt * koef
-
-    return oRPM
+    return rpm
 
 
-def robotInternalKinematics(
-    iDCvals: tuple[float, float],
-    iWheelRadius: float = 0.034,
-    iWheelDistance: float = 0.135,
+def robot_internal_kinematics(
+    dc_values: tuple[float, float],
+    wheel_radius: float = 0.034,
+    wheel_distance: float = 0.135,
 ) -> np.ndarray:
     """
-    Returns robot translational (tangent) speed and rotational speed (rotation around ICR).
-    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1
+    Compute differential-drive local-frame velocity from wheel duty cycles.
 
-    Parameters
-    ----------
-    iDCvals        : tuple, 2 values
-        DC values on left and right wheels
-    iWheelRadius   : float
-        Wheel radius in m
-    iWheelDistance : float
-        Distance between wheels in m
+    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1.
 
-    Returns
-    ---------
-    oInternalSpeed : tuple (oVx, oVy, oW)
-        Translational (tangent) speed in m/s and rotational speed in rad/s of robot in local coordinate system.
-        Note: for diferential drive, oVy should always be zero.
-
+    :param dc_values: Duty-cycle values for left and right wheels, in percent.
+    :param wheel_radius: Wheel radius in meters.
+    :param wheel_distance: Distance between wheels in meters.
+    :returns: Robot local velocity vector ``(vx, vy, w)`` in ``m/s, m/s, rad/s``.
     """
 
-    A = np.array(
+    coefficient_matrix = np.array(
         [
-            [iWheelRadius / 2, iWheelRadius / 2],
+            [wheel_radius / 2, wheel_radius / 2],
             [0, 0],
-            [-iWheelRadius / iWheelDistance, iWheelRadius / iWheelDistance],
+            [-wheel_radius / wheel_distance, wheel_radius / wheel_distance],
         ]
     )
     w_wheels = np.array(
-        [(largeMotorDC2RPM(dc_val) * 2 * np.pi / 60) for dc_val in iDCvals]
+        [
+            (large_motor_dc_to_rpm(dc_val) * 2 * np.pi / SECONDS_PER_MINUTE)
+            for dc_val in dc_values
+        ]
     ).transpose()
 
-    oInternalSpeed = np.dot(A, w_wheels)
+    internal_speed = np.dot(coefficient_matrix, w_wheels)
 
-    return oInternalSpeed
+    return internal_speed
 
 
-def robotExternalKinematics(
-    iDCvals: tuple[float, float],
-    iPhi: float,
-    iWheelRadius: float = 0.034,
-    iWheelDistance: float = 0.135,
+def robot_external_kinematics(
+    dc_values: tuple[float, float],
+    phi_angle: float,
+    wheel_radius: float = 0.034,
+    wheel_distance: float = 0.135,
 ) -> np.ndarray:
     """
-    Returns robot tranlational (tangent) speed and rotational speed (rotation around ICR) in external coordinate system.
-    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1
+    Compute differential-drive velocity in the global frame.
 
-    Parameters
-    ----------
+    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1.
 
-    iDCvals : tuple, (iDCleft, iDCright)
-        DC values on left and right wheels
-    iPhi : float
-        Current orientation of the robot, in degrees
-    iWheelRadius   : float
-        Wheel radius in m
-    iWheelDistance : float
-        Distance between wheels in m
-
-    Returns
-    ----------
-
-    (oVx, oVy, oW) : tuple
-        Translational (tangent) speed in m/s and rotational speed in rad/s of robot in local coordinate system.
-                         Note: for diferential drive, oVy should always be zero.
-
+    :param dc_values: Duty-cycle values for left and right wheels, in percent.
+    :param phi_angle: Current robot orientation in degrees.
+    :param wheel_radius: Wheel radius in meters.
+    :param wheel_distance: Distance between wheels in meters.
+    :returns: Robot global velocity vector ``(vx, vy, w)`` in ``m/s, m/s, rad/s``.
     """
 
-    vx_local, vy_local, w_local = robotInternalKinematics(
-        iDCvals, iWheelRadius, iWheelDistance
+    vx_local, vy_local, w_local = robot_internal_kinematics(
+        dc_values, wheel_radius, wheel_distance
     )
     v_abs = np.sqrt(vx_local**2 + vy_local**2)
     w_abs = w_local
 
-    A = np.array(
-        [[np.cos(iPhi * np.pi / 180), 0], [np.sin(iPhi * np.pi / 180), 0], [0, 1]]
+    transform_matrix = np.array(
+        [
+            [np.cos(phi_angle * DEG_TO_RAD), 0],
+            [np.sin(phi_angle * DEG_TO_RAD), 0],
+            [0, 1],
+        ]
     )
 
-    robotAbsSpeed = np.array([v_abs, w_abs], ndmin=2).transpose()
+    robot_abs_speed = np.array([v_abs, w_abs], ndmin=2).transpose()
 
-    oExternalSpeed = np.dot(A, robotAbsSpeed)
+    external_speed = np.dot(transform_matrix, robot_abs_speed)
 
-    return oExternalSpeed
+    return external_speed
 
 
-def robotComputeNewPose(
-    iCurPose: np.ndarray, iRobotSpeed: np.ndarray, iSampleTime: float
-) -> np.ndarray:
+def robot_compute_new_pose(
+    current_pose: PoseArray, robot_speed: RobotSpeedArray, sample_time: float
+) -> PoseArray:
     """
-    Computes new robot pose, using curent pose and current speed of the robot. This function uses Euler integration method.
-    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1
+    Integrate robot motion over one sample to obtain a new pose.
 
-    Parameters
-    ---------
+    Euler integration is used.
+    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 3.2.1.
 
-    iCurPose    : np.array, 3×1
-        Curent pose of the robot (px,py,phi) in mm and deg
-    iRobotSpeed : np.array, 3×1
-        Curent speed of the robot (vx,vy,w) in m/s and rad/s
-    iSampleTime : float
-        Sample time in s
-
-    Returns
-    ---------
-
-    oNewPose : np.array, 3×1
-        New robot pose (px_new, py_new, phi_new) in mm and deg
-
+    :param current_pose: Current robot pose ``(x, y, phi)`` in ``mm, mm, deg``.
+    :param robot_speed: Robot local-frame speed ``(vx, vy, w)`` in ``m/s, m/s, rad/s``.
+    :param sample_time: Sample time in seconds.
+    :returns: New robot pose ``(x, y, phi)`` in ``mm, mm, deg``.
     """
 
     # compute absolute robot speed
-    v_robotAbs = np.sqrt(iRobotSpeed[0] ** 2 + iRobotSpeed[1] ** 2)
+    robot_abs_speed = np.sqrt(robot_speed[0] ** 2 + robot_speed[1] ** 2)
 
     # compute new pose
     px_new = (
-        iCurPose[0]
-        + v_robotAbs * iSampleTime * np.cos(iCurPose[2] * np.pi / 180) * 1000
+        current_pose[0]
+        + robot_abs_speed
+        * sample_time
+        * np.cos(current_pose[2] * DEG_TO_RAD)
+        * MM_PER_M
     )
     py_new = (
-        iCurPose[1]
-        + v_robotAbs * iSampleTime * np.sin(iCurPose[2] * np.pi / 180) * 1000
+        current_pose[1]
+        + robot_abs_speed
+        * sample_time
+        * np.sin(current_pose[2] * DEG_TO_RAD)
+        * MM_PER_M
     )
-    phi_new = iCurPose[2] + (iRobotSpeed[2] * iSampleTime) * 180 / np.pi
+    phi_new = current_pose[2] + (robot_speed[2] * sample_time) * RAD_TO_DEG
 
     # check angle cycle
-    phi_new = repairAngleCycle(phi_new)
+    phi_new = repair_angle_cycle(phi_new)
 
-    oNewPose = np.array([px_new, py_new, phi_new])
+    new_pose = np.array([px_new, py_new, phi_new])
 
-    return oNewPose
+    return new_pose
 
 
-def repairAngleCycle(iAngle: float) -> float:
+def repair_angle_cycle(angle: float) -> float:
     """
-    Gets angle value to [-180, 180] interval.
+    Wrap angle to the ``[-180, 180]`` interval.
 
-    Parameters
-    ----------
-    iAngle : float
-        Input angle in degrees
-
-    Returns
-    ---------
-    float
-        Output angle in degrees
+    :param angle: Input angle in degrees.
+    :returns: Wrapped angle in degrees.
     """
 
-    # return iAngle % 360
     return (
-        np.arctan2(np.sin(iAngle * np.pi / 180), np.cos(iAngle * np.pi / 180))
-        * 180
-        / np.pi
+        np.arctan2(np.sin(angle * DEG_TO_RAD), np.cos(angle * DEG_TO_RAD)) * RAD_TO_DEG
     )
 
 
-def rotZ(iAngle: float) -> np.ndarray:
+def rot_z(angle: float) -> np.ndarray:
     """
-    Returns 2×2 rotational matrix around z axis
+    Compute a 2x2 rotation matrix around the z axis.
 
-    Parameters
-    ---------
-    iAngle : float
-        Rotational angle in degrees.
-
-    Returns
-    --------
-    np.ndarray
-        2×2 rotatinal matrix
-
+    :param angle: Rotation angle in degrees.
+    :returns: Rotation matrix.
     """
 
-    # convert angle to radians
-    iAngle = iAngle * np.pi / 180
+    angle = angle * DEG_TO_RAD
 
-    oMat = np.array(
-        [[np.cos(iAngle), -np.sin(iAngle)], [np.sin(iAngle), np.cos(iAngle)]]
-    )
+    matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
 
-    return oMat
+    return matrix

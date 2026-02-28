@@ -14,7 +14,7 @@ def test_legopixy_package_imports():
     import legopixy.particle_filter
     import legopixy.pixy_functions
 
-    assert hasattr(legopixy.pixy_functions, "computeObjectPosition")
+    assert hasattr(legopixy.pixy_functions, "compute_object_position")
 
 
 def test_particle_filter_simulation_starts():
@@ -35,7 +35,7 @@ def test_particle_filter_simulation_starts():
 
 
 def test_lego_pixy_simulation_starts():
-    """Verify lego pixy simulation script starts (blocks on Bluetooth recieveData; timeout = success)."""
+    """Verify lego pixy simulation script starts (blocks on Bluetooth receive_data; timeout = success)."""
     project_root = Path(__file__).resolve().parent.parent
     script_path = project_root / "scripts" / "lego_pixy_simulation.py"
     env = {**os.environ, "MPLBACKEND": "Agg"}

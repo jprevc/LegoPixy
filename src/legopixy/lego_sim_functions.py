@@ -10,44 +10,48 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 
+from legopixy.constants import DEG_TO_RAD
 
-def drawRectangle(iFig, iOrigin, iWidth, iHeight, iRot=0, iCol="blue", iAlpha=0.5):
+# Robot drawing defaults (mm)
+ROBOT_LENGTH = 170
+ROBOT_WIDTH = 110
+WHEEL_LENGTH = 50
+WHEEL_WIDTH = 35
+DISTANCE_BETWEEN_WHEELS = 135
+CAM_LENGTH = 30
+CAM_WIDTH = 20
+
+
+def draw_rectangle(fig, origin, width, height, rotation=0, color="blue", alpha=0.5):
     """
     Draws a rectangle on the figure.
 
-    Parameters
-    ----------
-    iFig    : figure
-        Figure handle
-    iOrigin : tuple
-        Location of the center of the rectangle
-    iWidth  : float
-        Width of the rectangle
-    iHeight : float
-        Height of the rectangle
-    iRot    : float
-        Rotation of the rectangle in degrees (note: rectangle is rotated around the rectangle's center)
-    iCol    : string
-        Color of the rectalngle
-    iAlpha  : float
-        Transparency of the rectangle. Accepted values are 0 - 1
-
+    :param fig: Figure handle where the rectangle is drawn.
+    :param origin: Rectangle center ``(x, y)`` in plot coordinates.
+    :param width: Rectangle width.
+    :param height: Rectangle height.
+    :param rotation: Rotation in degrees around rectangle center.
+    :param color: Rectangle color.
+    :param alpha: Rectangle transparency in the ``[0, 1]`` range.
     """
-    iOrigin = np.asarray(iOrigin).flatten()
-    ox, oy = float(iOrigin[0]), float(iOrigin[1])
-    iRot = float(iRot)
+    origin = np.asarray(origin).flatten()
+    origin_x, origin_y = float(origin[0]), float(origin[1])
+    rotation = float(rotation)
 
-    ax = iFig.add_subplot(111)
+    ax = fig.add_subplot(111)
 
     rect = patches.Rectangle(
-        (ox - iWidth / 2.0, oy - iHeight / 2.0),
-        iWidth,
-        iHeight,
-        color=iCol,
-        alpha=iAlpha,
+        (origin_x - width / 2.0, origin_y - height / 2.0),
+        width,
+        height,
+        color=color,
+        alpha=alpha,
     )
     trans = (
-        mpl.transforms.Affine2D().translate(-ox, -oy).rotate_deg(iRot).translate(ox, oy)
+        mpl.transforms.Affine2D()
+        .translate(-origin_x, -origin_y)
+        .rotate_deg(rotation)
+        .translate(origin_x, origin_y)
         + ax.transData
     )
 
@@ -56,104 +60,87 @@ def drawRectangle(iFig, iOrigin, iWidth, iHeight, iRot=0, iCol="blue", iAlpha=0.
     ax.add_patch(rect)
 
 
-def drawRobot(
-    iFig,
-    iRobotPose,
-    iRobotLength=170,
-    iRobotWidth=110,
-    iWheelLength=50,
-    iWheelWidth=35,
-    iDistBetweenWheels=135,
-    iCamLength=30,
-    iCamWidth=20,
+def draw_robot(
+    fig,
+    robot_pose,
+    robot_length=ROBOT_LENGTH,
+    robot_width=ROBOT_WIDTH,
+    wheel_length=WHEEL_LENGTH,
+    wheel_width=WHEEL_WIDTH,
+    distance_between_wheels=DISTANCE_BETWEEN_WHEELS,
+    cam_length=CAM_LENGTH,
+    cam_width=CAM_WIDTH,
 ):
     """
-    Draws a diferential drive robot on figure.
+    Draws a differential drive robot on figure.
 
-    Parameters
-    ---------
-    iFig : figure
-        Figure handle
-    iRobotPose : np.array 3×1
-        Current robot position px,py in mm and orientation in degrees
-    iRobotLength : float
-        Length of the robot
-    iRobotWidth : float
-        Width of the robot
-    iWheelLength : float
-        Length of the wheel
-    iWheelWidth : float
-        Width of the wheel
-    iDistBetweenWheels : float
-        Distance between centers of the wheels
-
+    :param fig: Figure handle where the robot is drawn.
+    :param robot_pose: Robot pose ``(x, y, phi)`` in ``mm, mm, deg``.
+    :param robot_length: Robot body length.
+    :param robot_width: Robot body width.
+    :param wheel_length: Wheel length.
+    :param wheel_width: Wheel width.
+    :param distance_between_wheels: Distance between wheel centers.
+    :param cam_length: Camera marker length.
+    :param cam_width: Camera marker width.
     """
-    iRobotPose = np.asarray(iRobotPose).flatten()
-    robotPosition = iRobotPose[:2]
-    robotOrientation = float(iRobotPose[2])
+    robot_pose = np.asarray(robot_pose).flatten()
+    robot_position = robot_pose[:2]
+    robot_orientation = float(robot_pose[2])
 
     # compute right and left wheels positions
-    rightWheelPosition = robotPosition + (iDistBetweenWheels / 2.0) * np.array(
-        [
-            np.sin(robotOrientation * np.pi / 180),
-            -np.cos(robotOrientation * np.pi / 180),
-        ]
+    phi_rad = robot_orientation * DEG_TO_RAD
+    right_wheel_position = robot_position + (distance_between_wheels / 2.0) * np.array(
+        [np.sin(phi_rad), -np.cos(phi_rad)]
     )
-    leftWheelPosition = robotPosition - (iDistBetweenWheels / 2.0) * np.array(
-        [
-            np.sin(robotOrientation * np.pi / 180),
-            -np.cos(robotOrientation * np.pi / 180),
-        ]
+    left_wheel_position = robot_position - (distance_between_wheels / 2.0) * np.array(
+        [np.sin(phi_rad), -np.cos(phi_rad)]
     )
 
     # compute camera position
-    cameralPosition = robotPosition + (iRobotLength / 2) * np.array(
-        [np.cos(robotOrientation * np.pi / 180), np.sin(robotOrientation * np.pi / 180)]
+    camera_position = robot_position + (robot_length / 2) * np.array(
+        [np.cos(phi_rad), np.sin(phi_rad)]
     )
 
     # draw robot rectangle
-    drawRectangle(iFig, robotPosition, iRobotLength, iRobotWidth, robotOrientation)
+    draw_rectangle(fig, robot_position, robot_length, robot_width, robot_orientation)
 
     # draw wheel rectangles
-    drawRectangle(
-        iFig,
-        rightWheelPosition,
-        iWheelLength,
-        iWheelWidth,
-        robotOrientation,
-        iCol="black",
+    draw_rectangle(
+        fig,
+        right_wheel_position,
+        wheel_length,
+        wheel_width,
+        robot_orientation,
+        color="black",
     )
-    drawRectangle(
-        iFig,
-        leftWheelPosition,
-        iWheelLength,
-        iWheelWidth,
-        robotOrientation,
-        iCol="black",
+    draw_rectangle(
+        fig,
+        left_wheel_position,
+        wheel_length,
+        wheel_width,
+        robot_orientation,
+        color="black",
     )
 
     # draw camera rectangle
-    drawRectangle(
-        iFig, cameralPosition, iCamLength, iCamWidth, robotOrientation, iCol="black"
+    draw_rectangle(
+        fig, camera_position, cam_length, cam_width, robot_orientation, color="black"
     )
 
 
-def drawParticles(iParticlesPoseMat, iParticleWeights):
+def draw_particles(particles_pose_matrix, particle_weights):
     """
     Draws particles as arrows to current axis.
 
-    Parameters
-    ---------
-    iParticlesPoseMat : np.ndarray
-        Matrix 3×Np, where Np is number of particles. Each column represents (xp,yp, phi_p) for each particle
-    iParticleWeights : np.ndarray
-        Vector of length Np, where Np is number of particles. Weights affect the color of the drawn particle arrows
+    :param particles_pose_matrix: Particle pose matrix with columns ``(x, y, phi)``.
+    :param particle_weights: Particle weights used to color arrows.
     """
 
     plt.quiver(
-        iParticlesPoseMat[0, :],
-        iParticlesPoseMat[1, :],
-        np.cos(iParticlesPoseMat[2, :] * np.pi / 180),
-        np.sin(iParticlesPoseMat[2, :] * np.pi / 180),
-        iParticleWeights,
+        particles_pose_matrix[0, :],
+        particles_pose_matrix[1, :],
+        np.cos(particles_pose_matrix[2, :] * DEG_TO_RAD),
+        np.sin(particles_pose_matrix[2, :] * DEG_TO_RAD),
+        particle_weights,
     )

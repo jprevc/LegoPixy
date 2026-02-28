@@ -5,53 +5,54 @@ Created on Sat Dec 31 13:12:52 2016
 @author: miha
 """
 
+from legopixy.constants import ASCII_DOLLAR
 
-def client(iMac, iData="test", iPort=3):
+
+def client(mac_address, data_payload="test", port=3):
     import socket
 
     # The MAC address of a Bluetooth adapter on the server.
     # The server might have multiple Bluetooth adapters.
-    serverMACAddress = iMac
-    port = iPort  # port is an arbitrary choice. However, it must match the port used by the server.
+    server_mac_address = mac_address
     s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
     try:
-        s.connect((serverMACAddress, port))
-        text = iData
+        s.connect((server_mac_address, port))
+        text = data_payload
         s.send(bytes(text, "UTF-8"))
-        s.close()
-    except Exception:
+    except OSError:
+        pass  # Connection/socket error; ensure socket is closed
+    finally:
         s.close()
 
 
-def server(iMac, iPort=3, iBacklog=1, iSize=1024):
+def server(mac_address, port=3, backlog=1, size=1024):
 
     import socket
 
     # The MAC address of a Bluetooth adapter on the server.
     # The server might have multiple Bluetooth adapters.
-    hostMACAddress = iMac
-    port = iPort  # port is an arbitrary choice. However, it must match the port used by the client.
-    backlog = iBacklog
-    size = iSize
+    host_mac_address = mac_address
     s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    s.bind((hostMACAddress, port))
+    s.bind((host_mac_address, port))
     s.listen(backlog)
+    client_socket = None
     try:
-        client, address = s.accept()
+        client_socket, address = s.accept()
         # print("Socket is open")
-        while 1:
-            data = client.recv(size)
+        while True:
+            data = client_socket.recv(size)
             if data:
                 print(data)  # print string of data
-                client.send(data)
-    except Exception:
+                client_socket.send(data)
+    except OSError:
         # print("Closing socket")
-        client.close()
+        if client_socket is not None:
+            client_socket.close()
         s.close()
-    return data
+        raise
 
 
-def recieveData(iMac, iPort):
+def receive_data(mac_address, port):
 
     # INPUTS:  iMac:  address of bluetooth on computer which is server
     #         iPort:  number of port; it must match the port used by the client
@@ -60,33 +61,33 @@ def recieveData(iMac, iPort):
     #          cIdx:  color index of block
     #           dcL:  duty cycle of left large motor (EV3)
     #           dcR:  duty cycle of right large motor (EV3)
-    #          posX:  x-posotion of block which is detected
-    #          posY:  y-posotion of block which is detected
+    #          posX:  x-position of block which is detected
+    #          posY:  y-position of block which is detected
 
     import numpy as np
 
-    data = server(iMac, iPort)
+    data = server(mac_address, port)
 
-    cIdx = data[:1]
-    dcL = data[1:4]
-    dcR = data[4:7]
+    color_index = data[:1]
+    dc_left = data[1:4]
+    dc_right = data[4:7]
 
     for i in range(8, len(data)):
         # print(data[i])
-        if data[i] == 36:  # 36 = ascii for $
-            k = i + 1
+        if data[i] == ASCII_DOLLAR:
+            split_index = i + 1
             # print(str(k))
             break
 
-    posX = data[8 : k - 1]
-    posY = data[k:]
+    pos_x = data[8 : split_index - 1]
+    pos_y = data[split_index:]
 
-    A = np.zeros((1, 5), dtype="float")
-    A[0, 0] = cIdx
-    A[0, 1] = dcL
-    A[0, 2] = dcR
-    A[0, 3] = posX
-    A[0, 4] = posY
+    output_data = np.zeros((1, 5), dtype="float")
+    output_data[0, 0] = color_index
+    output_data[0, 1] = dc_left
+    output_data[0, 2] = dc_right
+    output_data[0, 3] = pos_x
+    output_data[0, 4] = pos_y
 
     """
     print(cIdx)
@@ -96,4 +97,4 @@ def recieveData(iMac, iPort):
     print(posY)
     """
 
-    return A
+    return output_data

@@ -9,344 +9,282 @@ from __future__ import annotations
 
 import numpy as np
 
-from legopixy.lego_kinematics import robotComputeNewPose, rotZ
+from legopixy.constants import (
+    PARTICLE_WEIGHT_FLOOR,
+    RAD_TO_DEG,
+    SIMULATED_CAM_MAX_ANGLE,
+    SIMULATED_CAM_MAX_DISTANCE,
+)
+from legopixy.lego_kinematics import robot_compute_new_pose, rot_z
+from legopixy.types import (
+    CovarianceMatrix,
+    InnovationMatrix,
+    ObjectPosMatrix,
+    ParticleObjectPosMatrix,
+    ParticlesArray,
+    ParticleWeightsArray,
+    PoseArray,
+    RobotSpeedArray,
+)
 
 
-def initializeParticles(
-    iNumParticles: int,
-    iParticlePose: np.ndarray,
-    iParticlesDeviation: np.ndarray,
-) -> np.ndarray:
+def initialize_particles(
+    num_particles: int,
+    particle_pose: PoseArray,
+    particles_deviation: np.ndarray,
+) -> ParticlesArray:
     """
     Initialize particles in a certain position and deviation around that position.
 
-    Parameters
-    ------------
-    iNumParticles : int
-        Number of particles to initialize
-    iParticlesPose : np.ndarray
-        Array 3×1 of initial particles pose
-    iParticlesDeviation : np.ndarray
-        Sequence of 2 elements (posDev, angleDev), where posDev is position deviation
-        in mm and angleDev is angle deviation in deg around initial pose
-
-    Returns
-    --------
-    np.ndarray
-        Array 3×Np of initialized particles, where Np is number of particles.
+    :param num_particles: Number of particles to initialize.
+    :param particle_pose: Initial particle pose ``(x, y, phi)`` in ``mm, mm, deg``.
+    :param particles_deviation: Position and angle deviation around initial pose.
+    :returns: Matrix of particle poses with shape ``(3, num_particles)``.
     """
 
-    oParticlesPoseMat = iParticlePose + np.dot(
+    particles_pose_matrix = particle_pose + np.dot(
         np.diag(
             np.array(
-                [iParticlesDeviation[0], iParticlesDeviation[0], iParticlesDeviation[1]]
+                [particles_deviation[0], particles_deviation[0], particles_deviation[1]]
             )
         ),
-        np.random.rand(3, iNumParticles) - 0.5,
+        np.random.rand(3, num_particles) - 0.5,
     )
 
-    return oParticlesPoseMat
+    return particles_pose_matrix
 
 
-def computeNewParticlesPose(
-    iParticlesPoseMat: np.ndarray,
-    iRobotSpeed: np.ndarray,
-    iSampleTime: float,
-) -> np.ndarray:
+def compute_new_particles_pose(
+    particles_pose_matrix: ParticlesArray,
+    robot_speed: RobotSpeedArray,
+    sample_time: float,
+) -> ParticlesArray:
     """
-    Returns new predicted positions for all particles. This function represents prediction step of the particle filter.
+    Predict new positions for all particles.
 
-    Parameters
-    ----------
-    iParticlesPoseMat : np.ndarray
-        Input matrix 3×n , where n is number of particles. Each column is (xp,yp,phi) for particle in global coordinates
-    iRobotSpeed : np.array, 3×1
-        Curent speed of the robot (vx,vy,w) in m/s and rad/s
-    iSampleTime : float
-        Sample time in s
+    This function represents the particle filter prediction step.
 
-    Returns
-    -----------
-    oParticlesPoseMat : np.ndarray
-        Input matrix 3×n , where n is number of particles. Each column is (xp,yp,phi) for particle in global coordinates
+    :param particles_pose_matrix: Input particle pose matrix with columns ``(x, y, phi)``.
+    :param robot_speed: Robot local-frame speed ``(vx, vy, w)`` in ``m/s, m/s, rad/s``.
+    :param sample_time: Sample time in seconds.
+    :returns: Predicted particle pose matrix with columns ``(x, y, phi)``.
     """
 
     # TODO : add random noise to motion
 
-    oParticlesMat = np.zeros_like(iParticlesPoseMat)
+    particles_matrix = np.zeros_like(particles_pose_matrix)
 
-    numOfParticles = iParticlesPoseMat.shape[1]
+    num_of_particles = particles_pose_matrix.shape[1]
 
-    for particleInd in range(numOfParticles):
+    for particle_index in range(num_of_particles):
 
-        # use robotComputeNewPose function for computing new particle pose
-        oParticlesMat[:, particleInd] = robotComputeNewPose(
-            iParticlesPoseMat[:, particleInd], iRobotSpeed, iSampleTime
+        # use robot_compute_new_pose function for computing new particle pose
+        particles_matrix[:, particle_index] = robot_compute_new_pose(
+            particles_pose_matrix[:, particle_index], robot_speed, sample_time
         )[:, 0]
 
-    return oParticlesMat
+    return particles_matrix
 
 
-def getParticleSensorValue(
-    iParticlesPoseMat: np.ndarray, iObjectPosMat: np.ndarray
-) -> np.ndarray:
+def get_particle_sensor_value(
+    particles_pose_matrix: ParticlesArray, object_pos_matrix: ObjectPosMatrix
+) -> ParticleObjectPosMatrix:
     """
-    Returns positions of all objects, as would be measured if the camera was in the pose of coresponding particle.
+    Compute object positions as observed from each particle pose.
 
-    Parameters
-    ----------
-    iParticlesPoseMat : np.ndarray
-        Input matrix 3×Np , where n is number of particles.
-        Each column is (xp,yp,phi_p) for particle pose in global coordinates
-        phi_p parameter is in degrees
-    iObjectPosMat : np.ndarray
-        Input matrix 2×No, where No is the number of placed objects.
-        Each column is (xo,yo) for object position in global coordinates.
-
-    Returns
-    ----------
-    np.ndarray
-        3D matrix 2 × No × Np, where No is number of objects, and Np is number of particles,
-        vector [:,Oi,Pi] represents position of object Oi in particle Pi's local coordinate system.
-
+    :param particles_pose_matrix: Particle pose matrix with columns ``(x, y, phi)`` in global frame.
+    :param object_pos_matrix: Object position matrix with columns ``(x, y)`` in global frame.
+    :returns: Tensor with shape ``(2, num_objects, num_particles)`` in particle-local frames.
     """
 
     # get number of objects and number of particles
-    numOfParticles = iParticlesPoseMat.shape[1]
-    numOfObjects = iObjectPosMat.shape[1]
+    num_of_particles = particles_pose_matrix.shape[1]
+    num_of_objects = object_pos_matrix.shape[1]
 
     # initialize output matrix
-    oParticleObjectPosMat = np.zeros((2, numOfObjects, numOfParticles))
+    particle_object_pos_matrix = np.zeros((2, num_of_objects, num_of_particles))
 
-    for particleInd in range(numOfParticles):
+    for particle_index in range(num_of_particles):
 
         # get current particle orientation
-        partAngle = iParticlesPoseMat[2, particleInd]
+        part_angle = particles_pose_matrix[2, particle_index]
 
-        for objectInd in range(numOfObjects):
+        for object_index in range(num_of_objects):
 
             # get current object's position as would be measured by current particle
-            oParticleObjectPosMat[:, objectInd, particleInd] = np.dot(
-                rotZ(partAngle).transpose(),
-                iObjectPosMat[:, objectInd] - iParticlesPoseMat[:2, particleInd],
+            particle_object_pos_matrix[:, object_index, particle_index] = np.dot(
+                rot_z(part_angle).transpose(),
+                object_pos_matrix[:, object_index]
+                - particles_pose_matrix[:2, particle_index],
             )
 
-    return oParticleObjectPosMat
+    return particle_object_pos_matrix
 
 
-def computeInnovation(
-    iMeasuredObjectInd: int,
-    iRobotSensorMeas: np.ndarray,
-    iParticleObjectPosMat: np.ndarray,
-) -> np.ndarray:
+def compute_innovation(
+    measured_object_index: int,
+    robot_sensor_measurement: np.ndarray,
+    particle_object_pos_matrix: ParticleObjectPosMatrix,
+) -> InnovationMatrix:
     """
     Computes innovation for each particle.
 
-    Parameters
-    ----------
-    iMeasuredObjectInd : int
-        Index of detected object
-    iRobotSensorMeas : np.ndarray
-        Vector 2×1 with robot's measured position of detected object in robot's camera coordinate system
-    iParticleObjectPosMat : np.ndarray
-        3D matrix 2×No×Np, where No is number of objects, and Np is number of particles,
-        vector [:,Oi,Pi] represents position of object Oi in particle Pi's local coordinate system.
-
-    Returns
-    ----------
-    np.ndarray
-        Matrix 2×Np, where Np is number of particles. Each column represents computed innovation for each particle.
+    :param measured_object_index: Index of the detected object.
+    :param robot_sensor_measurement: Measured object position in robot camera coordinates.
+    :param particle_object_pos_matrix: Predicted object positions for each particle.
+    :returns: Innovation matrix with one column per particle.
     """
-    numOfParticles = iParticleObjectPosMat.shape[2]
+    num_of_particles = particle_object_pos_matrix.shape[2]
 
     # get all particles measurements for only the one detected object
-    detectedObjectParticlePosMat = iParticleObjectPosMat[:, iMeasuredObjectInd, :]
+    detected_object_particle_pos_matrix = particle_object_pos_matrix[
+        :, measured_object_index, :
+    ]
 
     return (
-        np.repeat(iRobotSensorMeas.reshape((2, 1)), numOfParticles, axis=1)
-        - detectedObjectParticlePosMat
+        np.repeat(robot_sensor_measurement.reshape((2, 1)), num_of_particles, axis=1)
+        - detected_object_particle_pos_matrix
     )
 
 
-def computeParticleWeights(
-    iInnovationMat: np.ndarray, iCovarianceMat: np.ndarray
-) -> np.ndarray:
+def compute_particle_weights(
+    innovation_matrix: InnovationMatrix, covariance_matrix: CovarianceMatrix
+) -> ParticleWeightsArray:
     """
-    Computes particle weights
-    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 9.5
+    Compute particle weights from innovation vectors.
 
-    Parameters
-    ----------
-    iInnovationMat : np.ndarray
-        Matrix 2×Np, where Np is number of particles. Each column represents computed innovation for each particle.
+    Reference: AVTONOMNI MOBILNI SISTEMI, Gregor Klancar, section 9.5.
 
-    iCovarianceMat : np.ndarray
-        2×2 covariance matrix
-
-    Returns
-    ----------
-    np.ndarray
-        Matrix Np×1 of weigths, where Np is number of particles
+    :param innovation_matrix: Innovation matrix with one column per particle.
+    :param covariance_matrix: Measurement covariance matrix.
+    :returns: Particle weight vector with one row per particle.
     """
 
     # TODO: uporabljena enačba v tej funkciji je drugacna kot v ucbeniku, je pa taka uporabljena tudi v Matlab primeru. Ugotovi, ce je prava
 
-    numOfParticles = iInnovationMat.shape[1]
+    num_of_particles = innovation_matrix.shape[1]
 
-    oParticleWeigths = np.zeros((numOfParticles, 1))
+    particle_weights = np.zeros((num_of_particles, 1))
 
-    for particleInd in range(numOfParticles):
-        innovMat = np.array(iInnovationMat[:, particleInd], ndmin=2)
-        InnovRRInnov = np.dot(
-            np.dot(innovMat, np.linalg.inv(iCovarianceMat)), innovMat.transpose()
+    for particle_index in range(num_of_particles):
+        innovation_vector = np.array(innovation_matrix[:, particle_index], ndmin=2)
+        innov_rr_innov = np.dot(
+            np.dot(innovation_vector, np.linalg.inv(covariance_matrix)),
+            innovation_vector.transpose(),
         )
-        # oParticleWeigths[particleInd] = detCovMat**(-0.5) * np.exp(-0.5 * InnovRRInnov) + 0.001
-        # oParticleWeigths[particleInd] = np.exp(-0.5 * InnovRRInnov) + 0.0001
-        oParticleWeigths[particleInd] = 1 / InnovRRInnov + 0.0001
+        # particle_weights[particle_index] = det_cov_mat**(-0.5) * np.exp(-0.5 * innov_rr_innov) + 0.001
+        # particle_weights[particle_index] = np.exp(-0.5 * innov_rr_innov) + 0.0001
+        particle_weights[particle_index] = 1 / innov_rr_innov + PARTICLE_WEIGHT_FLOOR
 
-    return oParticleWeigths
+    return particle_weights
 
 
-def computeCovarianceMat(iSensorVariance: float) -> np.ndarray:
+def compute_covariance_matrix(sensor_variance: float) -> CovarianceMatrix:
     """
-    Returns covariance matrix of measurement
+    Build the measurement covariance matrix.
 
-    Parameters
-    ---------
-    iSensorVariance : float
-        Sensor's measurement variance of distance in mm
-
-    Returns
-    ---------
-    np.ndarray
-        2×2 covariance matrix
-
+    :param sensor_variance: Sensor distance-measurement variance in millimeters.
+    :returns: Diagonal 2x2 covariance matrix.
     """
 
-    sensorVarianceMat = np.diag(np.array([iSensorVariance, iSensorVariance]))
+    sensor_variance_matrix = np.diag(np.array([sensor_variance, sensor_variance]))
 
-    # oCovMat = np.diag(np.repeat(np.array(iSensorVariance,ndmin=2), [1, 2]))
-    oCovMat = sensorVarianceMat
-    return oCovMat
+    # covariance_matrix = np.diag(np.repeat(np.array(sensor_variance, ndmin=2), [1, 2]))
+    covariance_matrix = sensor_variance_matrix
+    return covariance_matrix
 
 
-def selectNewGeneration(iParticleWeights: np.ndarray) -> np.ndarray:
+def select_new_generation(particle_weights: ParticleWeightsArray) -> np.ndarray:
     """
-    Returns indexes of selected particles for new generation
+    Sample particle indices for the next generation.
 
-    Parameters
-    -----------
-    iParticleWeights : np.ndarray
-        Matrix Np×1, where Np is number of particles
-
-    Returns
-    ----------
-    np.ndarray
-        Matrix of selected particle indexes Np×1, where Np is number of particles
+    :param particle_weights: Particle weight vector.
+    :returns: Selected particle indices for resampling.
     """
 
-    numOfParticles = iParticleWeights.shape[0]
+    num_of_particles = particle_weights.shape[0]
 
-    CDF = np.cumsum(iParticleWeights) / np.sum(iParticleWeights)
-    indSelectRand = np.random.rand(numOfParticles)
+    cdf = np.cumsum(particle_weights) / np.sum(particle_weights)
+    random_selection_indices = np.random.rand(num_of_particles)
 
     # prepend 0 to array CDF
-    # CDFg = np.insert(CDF, 0, 0)
-    CDFg = np.insert(CDF, 0, 0)
+    # cdf_with_zero = np.insert(cdf, 0, 0)
+    cdf_with_zero = np.insert(cdf, 0, 0)
 
-    indg = np.insert(np.arange(numOfParticles), 0, 0)
+    index_grid = np.insert(np.arange(num_of_particles), 0, 0)
 
-    indNextGen_float = np.interp(indSelectRand, CDFg, indg)
+    next_generation_float = np.interp(
+        random_selection_indices, cdf_with_zero, index_grid
+    )
 
-    indNextGen = np.ceil(indNextGen_float).astype("int")
+    next_generation_indices = np.ceil(next_generation_float).astype("int")
 
     #    plt.figure(2)
     #    plt.clf()
     #    plt.plot(CDFg[:-1], indg)
     #    plt.pause(0.05)
 
-    return indNextGen
+    return next_generation_indices
 
 
-def getSimulatedRobotSensorValue(
-    iRobotPose: np.ndarray,
-    iObjPos: np.ndarray,
-    iMaxCamAngle: float = 38,
-    iMaxDistance: float = 500,
+def get_simulated_robot_sensor_value(
+    robot_pose: PoseArray,
+    object_positions: ObjectPosMatrix,
+    max_cam_angle: float = SIMULATED_CAM_MAX_ANGLE,
+    max_distance: float = SIMULATED_CAM_MAX_DISTANCE,
 ) -> tuple[bool, int, np.ndarray]:
     """
-    Get simulated robot sensor value. If ovject is in view, function returns True and coordinates of the object,
-    if no object is in view, function returns False.
+    Simulate camera measurement from robot pose and known object positions.
 
-    Parameter
-    ---------
-    iRobotPose : np.ndarray
-        Matrix 3×1 of robot pose (xr,yr,phi_r) in mm and deg
-    iObjPos : np.ndarray
-        Matrix 2×No, where No is positions of the objects
-    iMaxCamAngle : float
-        Maximum angle, at which robot is still able to see the object in deg
-    iMaxDistance : float
-        Maximum distance, at which robot is still able to detect object in mm
+    If an object is in view, returns detection state and object coordinates.
 
-    Returns
-    ---------
-    tuple of three elements
-        1st element : bool
-            True if object is detected, False if not
-        2nd element : int
-            Index of detected object
-        3rd element : np.ndarray
-            Matrix 2×1 (xo, yo), where xo and yo is position of detected object in mm
+    :param robot_pose: Robot pose ``(x, y, phi)`` in ``mm, mm, deg``.
+    :param object_positions: Object position matrix with columns ``(x, y)`` in millimeters.
+    :param max_cam_angle: Maximum detection angle in degrees.
+    :param max_distance: Maximum detection distance in millimeters.
+    :returns: Tuple ``(detected, object_index, object_position_local)``.
     """
-    # use getParticleSensorValue to compute all loactions of objects simulated robot's coordinate system
-    objPosLocal = getParticleSensorValue(iRobotPose, iObjPos)[:, :, 0]
+    # use get_particle_sensor_value to compute all locations of objects in robot coordinates
+    object_positions_local = get_particle_sensor_value(robot_pose, object_positions)[
+        :, :, 0
+    ]
 
-    numOfObjects = iObjPos.shape[1]
+    num_of_objects = object_positions.shape[1]
 
     # for all objects check if any of them is in view
-    for objInd in range(numOfObjects):
+    for object_index in range(num_of_objects):
 
-        xo = objPosLocal[0, objInd]
-        yo = objPosLocal[1, objInd]
+        x_obj = object_positions_local[0, object_index]
+        y_obj = object_positions_local[1, object_index]
 
-        dist = np.sqrt(xo**2 + yo**2)
-        angle = np.arctan2(yo, xo) * 180 / np.pi
+        distance = np.sqrt(x_obj**2 + y_obj**2)
+        angle = np.arctan2(y_obj, x_obj) * RAD_TO_DEG
 
-        if dist <= iMaxDistance and np.abs(angle) <= iMaxCamAngle:
-            return (True, objInd, np.array([xo, yo], ndmin=2).transpose())
+        if distance <= max_distance and np.abs(angle) <= max_cam_angle:
+            return (True, object_index, np.array([x_obj, y_obj], ndmin=2).transpose())
 
     return (False, 0, np.zeros((2, 1)))
 
 
-def computeEstRobotPoseFromParticles(
-    iParticlesPoseMat: np.ndarray, iParticleWeigths: np.ndarray
-) -> np.ndarray:
+def compute_est_robot_pose_from_particles(
+    particles_pose_matrix: ParticlesArray, particle_weights: ParticleWeightsArray
+) -> PoseArray:
     """
-    Computes estimated robot position from particles pose
+    Estimate robot pose from particle set and weights.
 
-    Parameters
-    -----------
-    iParticlesPoseMat : np.ndarray
-        Input matrix 3×Np , where n is number of particles.
-        Each column is (xp,yp,phi_p) for particle pose in global coordinates
-        phi_p parameter is in degrees
-    iParticleWeights
-        Weigths of the particles
-    Returns
-    -----------
-    np.ndarray
-        Matrix 3×1 of estimated robot pose (xe,ye,phi_e) in mm and deg
+    :param particles_pose_matrix: Particle pose matrix with columns ``(x, y, phi)``.
+    :param particle_weights: Particle weights.
+    :returns: Estimated robot pose ``(x, y, phi)`` in ``mm, mm, deg``.
     """
-    oEstRobotPose = np.zeros((3, 1))
+    estimated_robot_pose = np.zeros((3, 1))
 
-    particlePositionMat = iParticlesPoseMat[:2, :]
-    particleAnglesMat = iParticlesPoseMat[2, :]
+    particle_position_matrix = particles_pose_matrix[:2, :]
+    particle_angles = particles_pose_matrix[2, :]
 
     # for estimated position we take mean of particle positions
-    oEstRobotPose[:2, 0] = np.mean(particlePositionMat, axis=1)
+    estimated_robot_pose[:2, 0] = np.mean(particle_position_matrix, axis=1)
 
     # for orientation estimation we take angle of the particle with the highest weight
-    oEstRobotPose[2, 0] = particleAnglesMat[np.argmax(iParticleWeigths)]
+    estimated_robot_pose[2, 0] = particle_angles[np.argmax(particle_weights)]
 
-    return oEstRobotPose
+    return estimated_robot_pose
