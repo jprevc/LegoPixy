@@ -104,8 +104,3 @@ uv run pytest
 3. Add tests for new behavior.
 4. Open a pull request.
 
-## Roadmap
-
-- [ ] CLI entry points for simulations (`legopixy-sim`, etc.)
-- [ ] Reduce duplicated logic between EV3 script and shared modules
-- [ ] Optional mypy/pyright static checking
