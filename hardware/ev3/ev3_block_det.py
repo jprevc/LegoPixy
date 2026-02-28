@@ -1,10 +1,9 @@
-
 """
-funkction for communication with bluetooth
-
+Function for communication with bluetooth
 """
 
-def client(iMac, iData = "test", iPort=3):
+
+def client(iMac, iData="test", iPort=3):
     import socket
 
     # The MAC address of a Bluetooth adapter on the server.
@@ -15,11 +14,10 @@ def client(iMac, iData = "test", iPort=3):
     try:
         s.connect((serverMACAddress, port))
         text = iData
-        s.send(bytes(text, 'UTF-8'))
+        s.send(bytes(text, "UTF-8"))
         s.close()
     except:
         s.close()
-
 
 
 def server(iMac, iPort=3, iBacklog=1, iSize=1024):
@@ -50,15 +48,20 @@ def server(iMac, iPort=3, iBacklog=1, iSize=1024):
     return data
 
 
-
 """
 Created on Sun Jan  1 17:34:26 2017
 @author: jostp
 """
 
 
-def computeObjectPosition(iObjectWidthPx, iObjectXcoordPx, iObjectWidth=64,  iFocalLength=215, iCamMaxAngle=38.65):
-    '''
+def computeObjectPosition(
+    iObjectWidthPx,
+    iObjectXcoordPx,
+    iObjectWidth=64,
+    iFocalLength=215,
+    iCamMaxAngle=38.65,
+):
+    """
     Returns detected object's position in camera coordinate system, according to his width, and its center's x coordinate
 
     Parameters
@@ -79,7 +82,7 @@ def computeObjectPosition(iObjectWidthPx, iObjectXcoordPx, iObjectWidth=64,  iFo
     np.array
         Computed postion (x,y) of object in camera coordinate system
 
-    '''
+    """
 
     import numpy as np
 
@@ -89,7 +92,6 @@ def computeObjectPosition(iObjectWidthPx, iObjectXcoordPx, iObjectWidth=64,  iFo
     else:
         distance = 0
 
-
     # compute object's angle to camera
     koef = -iCamMaxAngle / 128.0
     objectAngle = koef * (iObjectXcoordPx - 128)
@@ -98,8 +100,8 @@ def computeObjectPosition(iObjectWidthPx, iObjectXcoordPx, iObjectWidth=64,  iFo
     oX = distance * np.cos(objectAngle * np.pi / 180)
     oY = distance * np.sin(objectAngle * np.pi / 180)
 
-
     return np.array((oX, oY))
+
 
 #########################################################################################################
 ####################################### programm on EV3  ################################################
@@ -109,11 +111,11 @@ def computeObjectPosition(iObjectWidthPx, iObjectXcoordPx, iObjectWidth=64,  iFo
 import time
 import ev3dev.ev3 as ev3
 
-pixy = ev3.Sensor('in1')
-pixy.mode = 'ALL'
+pixy = ev3.Sensor("in1")
+pixy.mode = "ALL"
 
-m_left = ev3.LargeMotor('outB')
-m_right = ev3.LargeMotor('outC')
+m_left = ev3.LargeMotor("outB")
+m_right = ev3.LargeMotor("outC")
 
 btn = ev3.Button()
 
@@ -125,23 +127,23 @@ while not btn.any():
     dc_r = 10
 
     # set motor speed values
-    #m_left.run_direct(duty_cycle_sp=dc_l)
-    #m_right.run_direct(duty_cycle_sp=dc_r)
+    # m_left.run_direct(duty_cycle_sp=dc_l)
+    # m_right.run_direct(duty_cycle_sp=dc_r)
 
     a = pixy.value(0)
-    #b = pixy.value(1)
+    # b = pixy.value(1)
     c = pixy.value(2)
-    #d = pixy.value(3)
+    # d = pixy.value(3)
     e = pixy.value(4)
-    #f = pixy.value(5)
+    # f = pixy.value(5)
 
     pose = computeObjectPosition(e, c)
 
     aS = str(a)
     posX = str(pose[0])
     posY = str(pose[1])
-    dcL  = str(dc_l)
-    dcR  = str(dc_r)
+    dcL = str(dc_l)
+    dcR = str(dc_r)
 
     if len(aS) != 1:
         aS = "0"
@@ -153,7 +155,6 @@ while not btn.any():
     else:
         dcL = dcL
 
-
     if len(dcR) == 1:
         dcR = "00" + dcR
     elif len(dcR) == 2:
@@ -161,14 +162,12 @@ while not btn.any():
     else:
         dcR = dcR
 
-
-    text = aS + dcL + dcR + '$' + posX + '$' + posY
+    text = aS + dcL + dcR + "$" + posX + "$" + posY
 
     time.sleep(0.1)
-    client('a4:db:30:56:59:71',text, 4)
-
+    client("a4:db:30:56:59:71", text, 4)
 
 
 # stop both motors
-#m_left.stop()
-#m_right.stop()
+# m_left.stop()
+# m_right.stop()
