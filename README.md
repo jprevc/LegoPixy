@@ -4,6 +4,11 @@
 
 Lego Pixy particle filter localization and simulation for LEGO Mindstorms EV3 robots with Pixy camera.
 
+## Authors
+
+- **Jošt Prevc**
+- **Miha Mubi**
+
 ## Overview
 
 LegoPixy provides particle-filter-based robot localization using a Pixy camera for object detection. The library includes:
