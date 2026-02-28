@@ -4,6 +4,8 @@
 
 Lego Pixy particle filter localization and simulation for LEGO Mindstorms EV3 robots with Pixy camera.
 
+This project was developed as project work for **Avtonomni mobilni sistemi** (Autonomous Mobile Systems) at the Faculty of Electrical Engineering, University of Ljubljana.
+
 ## Authors
 
 - **Jošt Prevc**
