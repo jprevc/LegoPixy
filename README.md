@@ -18,6 +18,10 @@ LegoPixy provides particle-filter-based robot localization using a Pixy camera f
 - **Pixy integration** – Object position computation from camera data
 - **Simulation** – Desktop simulations with matplotlib visualization
 
+## Demo
+
+![Particle filtering demo](docs/demo.gif)
+
 ## Architecture
 
 ```
