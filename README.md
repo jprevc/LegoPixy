@@ -24,6 +24,13 @@ LegoPixy provides particle-filter-based robot localization using a Pixy camera f
 
 ![Particle filtering demo](docs/demo.gif)
 
+The video shows the algorithm in action. The autonomous vehicle is able to determine its absolute position with the use
+of:
+- pixy camera (which is able to sense the colored blocks with known positions)
+- odometry data
+- particle filter algorithm
+
+
 ## Architecture
 
 ```
